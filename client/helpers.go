@@ -85,13 +85,10 @@ func changeTargetsDelegation(repo *tuf.Repo, c changelist.Change) error {
 			return err
 		}
 		if err == nil {
-			// role existed
-			return data.ErrInvalidRole{
-				Role:   c.Scope(),
-				Reason: "cannot create a role that already exists",
-			}
+			// role existed, overwrite with new delegation
+			fmt.Printf("Role %s already exists, overwriting\n", c.Scope())
 		}
-		// role doesn't exist, create brand new
+		// create brand new role
 		r, err = td.ToNewRole(c.Scope())
 		if err != nil {
 			return err

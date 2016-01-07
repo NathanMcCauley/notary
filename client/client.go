@@ -509,6 +509,46 @@ func (r *NotaryRepository) GetChangelist() (changelist.Changelist, error) {
 	return cl, nil
 }
 
+// GetDelegationRoles returns the keys and roles of the repository's delegations
+func (r *NotaryRepository) GetDelegationRoles() ([]*data.Role, error) {
+	// All top level delegations (ex: targets/level1) are stored exclusively in targets.json
+	targetsJSON, _ := r.fileStore.GetMeta("targets", 0)
+	targets := &data.SignedTargets{}
+	err := json.Unmarshal(targetsJSON, targets)
+	if err != nil {
+		return nil, err
+	}
+	allDelegations := targets.Signed.Delegations.Roles
+
+	// make a copy for traversing nested delegations
+	delegationsList := make([]*data.Role, len(allDelegations))
+	copy(delegationsList, allDelegations)
+
+	// Now traverse to lower level delegations (ex: targets/level1/level2)
+	for len(delegationsList) > 0 {
+		// Pop off first delegation to traverse
+		delegation := delegationsList[0]
+		delegationsList = delegationsList[1:]
+
+		// Get metadata
+		delegationMetaJSON, _ := r.fileStore.GetMeta(delegation.Name, 0)
+		delegationMeta := &data.SignedTargets{}
+		err := json.Unmarshal(delegationMetaJSON, delegationMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, d := range delegationMeta.Signed.Delegations.Roles {
+			// Add to return list of all delegations
+			allDelegations = append(allDelegations, d)
+
+			// Add this delegation for exploration
+			delegationsList = append(delegationsList, d)
+		}
+	}
+	return allDelegations, nil
+}
+
 // Publish pushes the local changes in signed material to the remote notary-server
 // Conceptually it performs an operation similar to a `git rebase`
 func (r *NotaryRepository) Publish() error {

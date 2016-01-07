@@ -138,8 +138,17 @@ func (t targetsSorter) Less(i, j int) bool {
 	return t[i].Name < t[j].Name
 }
 
-// Given a list of KeyStores in order of listing preference, pretty-prints the
-// root keys and then the signing keys.
+// --- pretty printing roles ---
+
+type roleSorter []*data.Role
+
+func (r roleSorter) Len() int      { return len(r) }
+func (r roleSorter) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r roleSorter) Less(i, j int) bool {
+	return r[i].Name < r[j].Name
+}
+
+// Pretty-prints the sorted list of TargetWithRoles.
 func prettyPrintTargets(ts []*client.TargetWithRole, writer io.Writer) {
 	if len(ts) == 0 {
 		writer.Write([]byte("\nNo targets present in this repository.\n\n"))
@@ -161,6 +170,28 @@ func prettyPrintTargets(ts []*client.TargetWithRole, writer io.Writer) {
 	table.Render()
 }
 
+// Pretty-prints the list of provided Roles
+func prettyPrintRoles(rs []*data.Role, writer io.Writer) {
+	if len(rs) == 0 {
+		writer.Write([]byte("\nNo such roles present in this repository.\n\n"))
+		return
+	}
+
+	// this sorter works for Role types
+	sort.Stable(roleSorter(rs))
+
+	table := getTable([]string{"Name", "Paths", "Path Hash Prefixes", "Key IDs"}, writer)
+
+	for _, r := range rs {
+		table.Append([]string{
+			r.Name,
+			fmt.Sprintf("%v", r.Paths),
+			fmt.Sprintf("%v", r.PathHashPrefixes),
+			fmt.Sprintf("%v", r.KeyIDs),
+		})
+	}
+	table.Render()
+}
 // --- pretty printing certs ---
 
 // cert by repo name then expiry time.  Don't bother sorting by fingerprint.

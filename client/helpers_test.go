@@ -459,11 +459,28 @@ func TestApplyTargetsDelegationCreateAlreadyExisting(t *testing.T) {
 	// we have sufficient checks elsewhere we don't need to confirm that
 	// creating fresh works here via more asserts.
 
-	// when attempting to create the same role again, assert we receive
-	// an ErrInvalidRole because an existing role can't be "created"
+	// Use different path for this changelist
+	td.AddPaths = []string{"level2"}
+
+	tdJSON, err = json.Marshal(td)
+	assert.NoError(t, err)
+
+	ch = changelist.NewTufChange(
+		changelist.ActionCreate,
+		"targets/level1",
+		changelist.TypeTargetsDelegation,
+		"",
+		tdJSON,
+	)
+
+	// when attempting to create the same role again, check that we
+	// override previous details
 	err = applyTargetsChange(repo, ch)
-	assert.Error(t, err)
-	assert.IsType(t, data.ErrInvalidRole{}, err)
+	assert.NoError(t, err)
+	delegation, err := repo.GetDelegation("targets/level1")
+	assert.NoError(t, err)
+	assert.NotContains(t, delegation.Paths, "level1")
+	assert.Contains(t, delegation.Paths, "level2")
 }
 
 func TestApplyTargetsDelegationInvalidRole(t *testing.T) {
