@@ -511,10 +511,19 @@ func (r *NotaryRepository) GetChangelist() (changelist.Changelist, error) {
 
 // GetDelegationRoles returns the keys and roles of the repository's delegations
 func (r *NotaryRepository) GetDelegationRoles() ([]*data.Role, error) {
+	// Update state of the repo to latest
+	_, err := r.Update()
+	if err != nil {
+		return nil, err
+	}
+
 	// All top level delegations (ex: targets/level1) are stored exclusively in targets.json
-	targetsJSON, _ := r.fileStore.GetMeta("targets", 0)
+	targetsJSON, err := r.fileStore.GetMeta("targets", 0)
+	if err != nil {
+		return nil, err
+	}
 	targets := &data.SignedTargets{}
-	err := json.Unmarshal(targetsJSON, targets)
+	err = json.Unmarshal(targetsJSON, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -531,13 +540,16 @@ func (r *NotaryRepository) GetDelegationRoles() ([]*data.Role, error) {
 		delegationsList = delegationsList[1:]
 
 		// Get metadata
-		delegationMetaJSON, _ := r.fileStore.GetMeta(delegation.Name, 0)
+		delegationMetaJSON, err := r.fileStore.GetMeta(delegation.Name, 0)
+		// If we get an error, don't try to traverse further into this subtree because it doesn't exist or is malformed
+		if err != nil {
+			continue
+		}
 		delegationMeta := &data.SignedTargets{}
-		err := json.Unmarshal(delegationMetaJSON, delegationMeta)
+		err = json.Unmarshal(delegationMetaJSON, delegationMeta)
 		if err != nil {
 			return nil, err
 		}
-
 		for _, d := range delegationMeta.Signed.Delegations.Roles {
 			// Add to return list of all delegations
 			allDelegations = append(allDelegations, d)

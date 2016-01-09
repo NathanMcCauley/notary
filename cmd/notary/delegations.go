@@ -63,12 +63,12 @@ func (d *delegationCommander) delegationsList(cmd *cobra.Command, args []string)
 
 	gun := args[0]
 
-	// no online operations are performed by add so the transport argument
-	// should be nil
-	nRepo, err := notaryclient.NewNotaryRepository(config.GetString("trust_dir"), gun, getRemoteTrustServer(config), nil, retriever)
+	// initialize repo with transport to get latest state of the world before listing delegations
+	nRepo, err := notaryclient.NewNotaryRepository(config.GetString("trust_dir"), gun, getRemoteTrustServer(config), getTransport(config, gun, true), retriever)
 	if err != nil {
 		fatalf(err.Error())
 	}
+
 	delegationRoles, err := nRepo.GetDelegationRoles()
 	if err != nil {
 		return fmt.Errorf("Error retrieving delegation roles for repository %s: %v", gun, err)

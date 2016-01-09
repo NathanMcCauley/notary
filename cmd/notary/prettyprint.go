@@ -8,6 +8,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/docker/notary/client"
@@ -173,25 +174,26 @@ func prettyPrintTargets(ts []*client.TargetWithRole, writer io.Writer) {
 // Pretty-prints the list of provided Roles
 func prettyPrintRoles(rs []*data.Role, writer io.Writer) {
 	if len(rs) == 0 {
-		writer.Write([]byte("\nNo such roles present in this repository.\n\n"))
+		writer.Write([]byte("\nNo such roles published in this repository.\n\n"))
 		return
 	}
 
 	// this sorter works for Role types
 	sort.Stable(roleSorter(rs))
 
-	table := getTable([]string{"Name", "Paths", "Path Hash Prefixes", "Key IDs"}, writer)
+	table := getTable([]string{"Role", "Paths", "Key IDs", "Threshold"}, writer)
 
 	for _, r := range rs {
 		table.Append([]string{
 			r.Name,
-			fmt.Sprintf("%v", r.Paths),
-			fmt.Sprintf("%v", r.PathHashPrefixes),
-			fmt.Sprintf("%v", r.KeyIDs),
+			strings.Join(r.Paths, ","),
+			strings.Join(r.KeyIDs, ","),
+			fmt.Sprintf("%v", r.Threshold),
 		})
 	}
 	table.Render()
 }
+
 // --- pretty printing certs ---
 
 // cert by repo name then expiry time.  Don't bother sorting by fingerprint.
