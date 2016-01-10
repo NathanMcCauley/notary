@@ -102,7 +102,7 @@ func (d *delegationCommander) delegationRemove(cmd *cobra.Command, args []string
 	// Add the delegation to the repository
 	err = nRepo.RemoveDelegation(role)
 	if err != nil {
-		return fmt.Errorf("failed to add delegation: %v", err)
+		return fmt.Errorf("failed to remove delegation: %v", err)
 	}
 	cmd.Println("")
 	cmd.Printf(

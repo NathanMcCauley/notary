@@ -224,7 +224,6 @@ func TestPrettyPrintZeroRoles(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(text)), "\n")
 	assert.Len(t, lines, 1)
 	assert.Equal(t, "No such roles published in this repository.", lines[0])
-
 }
 
 // Roles are sorted by name, and the name, paths, and KeyIDs are printed.

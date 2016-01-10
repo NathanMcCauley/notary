@@ -310,7 +310,7 @@ func ParsePEMPublicKey(pubKeyBytes []byte) (data.PublicKey, error) {
 	case "CERTIFICATE":
 		cert, err := x509.ParseCertificate(pemBlock.Bytes)
 		if err != nil {
-			return nil, errors.New("could not parse provided certificate")
+			return nil, fmt.Errorf("could not parse provided certificate: %v", err)
 		}
 		err = ValidateCertificate(cert)
 		if err != nil {

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	ctxu "github.com/docker/distribution/context"
@@ -142,6 +143,123 @@ func TestClientTufInteraction(t *testing.T) {
 	output, err = runCommand(t, tempDir, "-s", server.URL, "list", "gun")
 	assert.NoError(t, err)
 	assert.False(t, strings.Contains(string(output), target))
+}
+
+// Initialize repo and test delegations commands by adding, listing, and removing delegations
+func TestClientDelegationsInteraction(t *testing.T) {
+	cleanup := setUp(t)
+	defer cleanup()
+
+	tempDir := tempDirWithConfig(t, "{}")
+	defer os.RemoveAll(tempDir)
+
+	server := setupServer()
+	defer server.Close()
+
+	// Setup certificate
+	tempFile, err := ioutil.TempFile("/tmp", "pemfile")
+	assert.NoError(t, err)
+
+	privKey, err := trustmanager.GenerateECDSAKey(rand.Reader)
+	keyID := privKey.ID()
+	startTime := time.Now()
+	endTime := startTime.AddDate(10, 0, 0)
+	cert, err := cryptoservice.GenerateCertificate(privKey, "gun", startTime, endTime)
+	assert.NoError(t, err)
+
+	_, err = tempFile.Write(trustmanager.CertToPEM(cert))
+	assert.NoError(t, err)
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+
+	var output string
+
+	// -- tests --
+
+	// init repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "init", "gun")
+	assert.NoError(t, err)
+
+	// publish repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "publish", "gun")
+	assert.NoError(t, err)
+
+	// list delegations - none yet
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No such roles published in this repository.")
+
+	// add new valid delegation with new cert
+	output, err = runCommand(t, tempDir, "delegation", "add", "gun", tempFile.Name(), "targets/delegation", "path")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Addition of delegation of key")
+
+	// check status - see delegation
+	output, err = runCommand(t, tempDir, "status", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Unpublished changes for gun")
+
+	// list delegations - none yet because still unpublished
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No such roles published in this repository.")
+
+	// publish repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "publish", "gun")
+	assert.NoError(t, err)
+
+	// check status - no changelist
+	output, err = runCommand(t, tempDir, "status", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No unpublished changes for gun")
+
+	// list delegations - we should see our added delegation
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "targets/delegation")
+
+	// overwrite the delegation by specifying the same role
+	output, err = runCommand(t, tempDir, "delegation", "add", "gun", tempFile.Name(), "targets/delegation", "new_dir")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Addition of delegation of key")
+
+	// publish repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "publish", "gun")
+	assert.NoError(t, err)
+
+	// list delegations - we should see our overwritten delegation, not the old path
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "new_dir")
+	assert.NotContains(t, output, "path")
+
+	// remove the delegation
+	output, err = runCommand(t, tempDir, "delegation", "remove", "gun", keyID, "targets/delegation")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Removal of delegation of key")
+
+	// publish repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "publish", "gun")
+	assert.NoError(t, err)
+
+	// list delegations - we should see no delegations
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No such roles published in this repository.")
+
+	// removing a nonexistent delegation does not error
+	output, err = runCommand(t, tempDir, "delegation", "remove", "gun", keyID, "targets/nonexistent")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Removal of delegation of key")
+
+	// publish repo
+	_, err = runCommand(t, tempDir, "-s", server.URL, "publish", "gun")
+	assert.NoError(t, err)
+
+	// list delegations - we should see no delegations
+	output, err = runCommand(t, tempDir, "-s", server.URL, "delegation", "list", "gun")
+	assert.NoError(t, err)
+	assert.Contains(t, output, "No such roles published in this repository.")
 }
 
 // Splits a string into lines, and returns any lines that are not empty (
