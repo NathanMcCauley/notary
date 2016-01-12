@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 
+	"github.com/docker/notary"
 	notaryclient "github.com/docker/notary/client"
 	"github.com/docker/notary/passphrase"
 	"github.com/docker/notary/trustmanager"
@@ -66,7 +66,7 @@ func (d *delegationCommander) delegationsList(cmd *cobra.Command, args []string)
 	// initialize repo with transport to get latest state of the world before listing delegations
 	nRepo, err := notaryclient.NewNotaryRepository(config.GetString("trust_dir"), gun, getRemoteTrustServer(config), getTransport(config, gun, true), retriever)
 	if err != nil {
-		fatalf(err.Error())
+		return err
 	}
 
 	delegationRoles, err := nRepo.GetDelegationRoles()
@@ -96,7 +96,7 @@ func (d *delegationCommander) delegationRemove(cmd *cobra.Command, args []string
 	// should be nil
 	nRepo, err := notaryclient.NewNotaryRepository(config.GetString("trust_dir"), gun, getRemoteTrustServer(config), nil, retriever)
 	if err != nil {
-		fatalf(err.Error())
+		return err
 	}
 
 	// Add the delegation to the repository
@@ -126,11 +126,6 @@ func (d *delegationCommander) delegationAdd(cmd *cobra.Command, args []string) e
 	role := args[2]
 	paths := args[3:]
 
-	// Check to see if the public key file exists
-	if _, err := os.Stat(pubKeyPath); os.IsNotExist(err) {
-		return fmt.Errorf("pub key file does not exist: %s", pubKeyPath)
-	}
-
 	// Read public key bytes from PEM file
 	pubKeyBytes, err := ioutil.ReadFile(pubKeyPath)
 	if err != nil {
@@ -145,20 +140,17 @@ func (d *delegationCommander) delegationAdd(cmd *cobra.Command, args []string) e
 
 	keyID := pubKey.ID()
 
-	// Check to see if it is an invalid ID
-	if len(keyID) != idSize {
-		return fmt.Errorf("invalid key ID provided: %s", keyID)
-	}
-
 	// no online operations are performed by add so the transport argument
 	// should be nil
 	nRepo, err := notaryclient.NewNotaryRepository(config.GetString("trust_dir"), gun, getRemoteTrustServer(config), nil, retriever)
 	if err != nil {
-		fatalf(err.Error())
+		return err
 	}
 
 	// Add the delegation to the repository
-	err = nRepo.AddDelegation(role, 1, []data.PublicKey{pubKey}, paths)
+	// Sets threshold to 1 since we only added one key - thresholds are not currently fully supported, though
+	// one can use additional client-side validation to check for signatures from a quorum of varying delegation roles
+	err = nRepo.AddDelegation(role, notary.MinThreshold, []data.PublicKey{pubKey}, paths)
 	if err != nil {
 		return fmt.Errorf("failed to add delegation: %v", err)
 	}

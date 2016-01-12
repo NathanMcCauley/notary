@@ -28,7 +28,7 @@ func setup() *delegationCommander {
 
 func TestAddInvalidDelegationName(t *testing.T) {
 	// Cleanup after test
-	defer os.Remove(testTrustDir)
+	defer os.RemoveAll(testTrustDir)
 
 	// Setup certificate
 	tempFile, err := ioutil.TempFile("/tmp", "pemfile")
@@ -49,7 +49,7 @@ func TestAddInvalidDelegationName(t *testing.T) {
 
 func TestAddInvalidDelegationCert(t *testing.T) {
 	// Cleanup after test
-	defer os.Remove(testTrustDir)
+	defer os.RemoveAll(testTrustDir)
 
 	// Setup certificate
 	tempFile, err := ioutil.TempFile("/tmp", "pemfile")
@@ -70,13 +70,40 @@ func TestAddInvalidDelegationCert(t *testing.T) {
 
 func TestRemoveInvalidDelegationName(t *testing.T) {
 	// Cleanup after test
-	defer os.Remove(testTrustDir)
+	defer os.RemoveAll(testTrustDir)
 
 	// Setup commander
 	commander := setup()
 
 	// Should error due to invalid delegation name (should be prefixed by "targets/")
 	err := commander.delegationRemove(commander.GetCommand(), []string{"gun", "fake_key_id", "INVALID_NAME", "path"})
+	assert.Error(t, err)
+}
+
+func TestAddInvalidNumArgs(t *testing.T) {
+	// Setup commander
+	commander := setup()
+
+	// Should error due to invalid number of args (3 instead of 4)
+	err := commander.delegationAdd(commander.GetCommand(), []string{"not", "enough", "args"})
+	assert.Error(t, err)
+}
+
+func TestListInvalidNumArgs(t *testing.T) {
+	// Setup commander
+	commander := setup()
+
+	// Should error due to invalid number of args (0 instead of 1)
+	err := commander.delegationsList(commander.GetCommand(), []string{})
+	assert.Error(t, err)
+}
+
+func TestRemoveInvalidNumArgs(t *testing.T) {
+	// Setup commander
+	commander := setup()
+
+	// Should error due to invalid number of args (2 instead of 3)
+	err := commander.delegationRemove(commander.GetCommand(), []string{"not", "enough"})
 	assert.Error(t, err)
 }
 

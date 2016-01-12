@@ -326,7 +326,9 @@ func ParsePEMPublicKey(pubKeyBytes []byte) (data.PublicKey, error) {
 // Currently, this is only a time expiry check
 func ValidateCertificate(c *x509.Certificate) error {
 	now := time.Now()
-	if now.Before(c.NotBefore) || now.After(c.NotAfter) {
+	yesterday := now.AddDate(0, 0, -1)
+	// Give one day leeway on creation "before" time, check "after" against today
+	if (c.NotBefore).Before(yesterday) || now.After(c.NotAfter) {
 		return fmt.Errorf("certificate is expired")
 	}
 	return nil

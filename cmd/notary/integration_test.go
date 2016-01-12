@@ -147,8 +147,7 @@ func TestClientTufInteraction(t *testing.T) {
 
 // Initialize repo and test delegations commands by adding, listing, and removing delegations
 func TestClientDelegationsInteraction(t *testing.T) {
-	cleanup := setUp(t)
-	defer cleanup()
+	setUp(t)
 
 	tempDir := tempDirWithConfig(t, "{}")
 	defer os.RemoveAll(tempDir)

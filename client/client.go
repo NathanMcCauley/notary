@@ -512,21 +512,16 @@ func (r *NotaryRepository) GetChangelist() (changelist.Changelist, error) {
 // GetDelegationRoles returns the keys and roles of the repository's delegations
 func (r *NotaryRepository) GetDelegationRoles() ([]*data.Role, error) {
 	// Update state of the repo to latest
-	_, err := r.Update()
-	if err != nil {
+	if _, err := r.Update(false); err != nil {
 		return nil, err
 	}
 
 	// All top level delegations (ex: targets/level1) are stored exclusively in targets.json
-	targetsJSON, err := r.fileStore.GetMeta("targets", 0)
-	if err != nil {
-		return nil, err
+	targets, ok := r.tufRepo.Targets[data.CanonicalTargetsRole]
+	if !ok {
+		return nil, store.ErrMetaNotFound{data.CanonicalTargetsRole}
 	}
-	targets := &data.SignedTargets{}
-	err = json.Unmarshal(targetsJSON, targets)
-	if err != nil {
-		return nil, err
-	}
+
 	allDelegations := targets.Signed.Delegations.Roles
 
 	// make a copy for traversing nested delegations
@@ -540,23 +535,15 @@ func (r *NotaryRepository) GetDelegationRoles() ([]*data.Role, error) {
 		delegationsList = delegationsList[1:]
 
 		// Get metadata
-		delegationMetaJSON, err := r.fileStore.GetMeta(delegation.Name, 0)
+		delegationMeta, ok := r.tufRepo.Targets[delegation.Name]
 		// If we get an error, don't try to traverse further into this subtree because it doesn't exist or is malformed
-		if err != nil {
+		if !ok {
 			continue
 		}
-		delegationMeta := &data.SignedTargets{}
-		err = json.Unmarshal(delegationMetaJSON, delegationMeta)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range delegationMeta.Signed.Delegations.Roles {
-			// Add to return list of all delegations
-			allDelegations = append(allDelegations, d)
 
-			// Add this delegation for exploration
-			delegationsList = append(delegationsList, d)
-		}
+		// Add nested delegations to return list and exploration list
+		allDelegations = append(allDelegations, delegationMeta.Signed.Delegations.Roles...)
+		delegationsList = append(delegationsList, delegationMeta.Signed.Delegations.Roles...)
 	}
 	return allDelegations, nil
 }
