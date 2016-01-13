@@ -887,3 +887,32 @@ func (r *NotaryRepository) rootFileKeyChange(role, action string, key data.Publi
 	}
 	return nil
 }
+
+// DeleteTrustData removes the trust data stored for this repo in the TUF cache on the client side,
+// if clearCertificate is set, it will also delete the certificate data for this GUN
+func (r *NotaryRepository) DeleteTrustData() error {
+	// Clear TUF files and cache
+	if err := r.fileStore.RemoveAll(); err != nil {
+		return fmt.Errorf("error clearing TUF repo data: %v", err)
+	}
+	r.tufRepo = tuf.NewRepo(nil, nil)
+	// Clear certificates
+	certStore := r.CertManager.TrustedCertificateStore()
+	certificates, err := certStore.GetCertificatesByCN(r.gun)
+	if err != nil {
+		return fmt.Errorf("error retrieving certificates for %s: %v", r.gun, err)
+	}
+	for _, cert := range certificates {
+		if err := certStore.RemoveCert(cert); err != nil {
+			return fmt.Errorf("error removing certificate: %v: %v", cert, err)
+		}
+	}
+	// Clear keys
+	repoKeys := r.CryptoService.ListAllKeys()
+	for _, key := range repoKeys {
+		if err := r.CryptoService.RemoveKey(key); err != nil {
+			return fmt.Errorf("error removing key %s: %v", key, err)
+		}
+	}
+	return nil
+}

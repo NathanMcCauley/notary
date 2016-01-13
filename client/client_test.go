@@ -324,6 +324,22 @@ func assertRepoHasExpectedKeys(t *testing.T, repo *NotaryRepository,
 		"there should be no timestamp key because the server manages it")
 }
 
+// This creates a new KeyFileStore in the repo's base directory and asserts existence of a key for a single role
+func assertRepoKeyForRole(t *testing.T, repo *NotaryRepository, expectedRole string, expected bool) {
+	// The repo should have a keyFileStore and have created keys using it,
+	// so create a new KeyFileStore, and check that the keys do exist and are
+	// valid
+	ks, err := trustmanager.NewKeyFileStore(repo.baseDir, passphraseRetriever)
+	assert.NoError(t, err)
+
+	_, _, err = ks.GetKey(expectedRole)
+	if expected {
+		assert.NoError(t, err)
+	} else {
+		assert.Error(t, err)
+	}
+}
+
 // This creates a new certificate manager in the repo's base directory and
 // makes sure the repo has the right certificates
 func assertRepoHasExpectedCerts(t *testing.T, repo *NotaryRepository) {
@@ -2458,4 +2474,42 @@ func TestBootstrapClientInvalidURL(t *testing.T) {
 	// and are requesting remote root regardless of checkInitialized
 	// value
 	assert.EqualError(t, err, err2.Error())
+}
+
+// TestDeleteRepo tests that local repo data, certificate, and keys are deleted from the client library call
+func TestDeleteRepo(t *testing.T) {
+	gun := "docker.com/notary"
+
+	ts, _, _ := simpleTestServer(t)
+	defer ts.Close()
+
+	repo, rootKeyID := initializeRepo(t, data.ECDSAKey, gun, ts.URL, false)
+	defer os.RemoveAll(repo.baseDir)
+
+	// Assert initialization was successful before we delete
+	assertRepoHasExpectedKeys(t, repo, rootKeyID, true)
+	assertRepoHasExpectedCerts(t, repo)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalRootRole, true)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalTargetsRole, true)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalSnapshotRole, true)
+
+	// Delete all client trust data for repo
+	repo.DeleteTrustData()
+
+	// Assert no metadata for this repo exists locally
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalRootRole, false)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalTargetsRole, false)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalSnapshotRole, false)
+	assertRepoHasExpectedMetadata(t, repo, data.CanonicalTimestampRole, false)
+
+	// Assert no certs for this repo exist locally
+	certs, err := repo.CertManager.TrustedCertificateStore().GetCertificatesByCN(gun)
+	assert.IsType(t, &trustmanager.ErrNoCertificatesFound{}, err)
+	assert.Nil(t, certs)
+
+	// Assert no keys for this repo exist locally
+	assertRepoKeyForRole(t, repo, data.CanonicalRootRole, false)
+	assertRepoKeyForRole(t, repo, data.CanonicalTargetsRole, false)
+	assertRepoKeyForRole(t, repo, data.CanonicalSnapshotRole, false)
+	assertRepoKeyForRole(t, repo, data.CanonicalTimestampRole, false)
 }
